@@ -1,0 +1,29 @@
+cabal-version:      3.0
+name:               emm
+version:            0.1.0.0
+license:            MIT
+license-file:       LICENSE
+author:             Teague Hansen
+maintainer:         thanse23@asu.edu
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall
+
+library
+  import:          warnings
+  build-depends:   base ^>=4.17.2.1,
+                   containers
+  hs-source-dirs:  src
+  exposed-modules: Expr
+  other-modules:   Parsers
+
+
+executable emm
+  import:           warnings
+  main-is:          Main.hs
+  build-depends:    base ^>=4.17.2.1,
+                    emm
+
+  hs-source-dirs:   app
+  default-language: Haskell2010

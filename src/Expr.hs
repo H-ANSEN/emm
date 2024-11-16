@@ -11,7 +11,6 @@ import Parsers
 import Prelude hiding (lookup)
 import Text.Printf (printf)
 import Control.Applicative
-import Data.Char
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Map.Strict (Map)
@@ -36,7 +35,7 @@ instance Show Expr where
   show (Fun name args) = printf "%s(%s)" name (intercalate ", " (map show args))
 
 instance Show Rule where
-  show Rule { hd, body } = show hd <> " = " <> show body
+  show Rule { hd=mHead, body=mBody} = show mHead <> " = " <> show mBody
 
 -- Merge two bindings together removing duplicate keys binding different values
 mergeBindings :: Bindings -> Bindings -> Bindings
@@ -56,7 +55,7 @@ substBindings bindings expr =
       let new_name = 
             case Map.lookup name bindings of
               Nothing -> name
-              Just (Sym new_name) -> new_name
+              Just (Sym sym_name) -> sym_name
               _ -> undefined 
       in
       let new_args = map (substBindings bindings) args in
@@ -111,10 +110,10 @@ parseExpr = parseFun <|> parseSym
 
 parseRule :: Parser Rule
 parseRule = do
-  hd   <- parseExpr
-  ws *> charP '=' <* ws
-  body <- parseExpr
-  pure Rule { hd, body }
+  mHead <- parseExpr
+  _     <- ws *> charP '=' <* ws
+  mBody <- parseExpr
+  pure Rule { hd=mHead, body=mBody }
 
 readRule :: String -> Maybe Rule
 readRule str = fst <$> runParser parseRule str

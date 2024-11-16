@@ -27,9 +27,9 @@ instance Applicative Parser where
   Parser p1 <*> Parser p2 = Parser f
     where 
       f input = do
-        (f, input') <- p1 input
+        (f', input') <- p1 input
         (a, input'') <- p2 input'
-        Just (f a, input'')
+        Just (f' a, input'')
 
 instance Monad Parser where
   (Parser p) >>= f = Parser $ \inp -> do
@@ -47,7 +47,7 @@ anyP = Parser $ \inp ->
     []   -> Nothing
 
 charPred :: (Char -> Bool) -> Parser Char
-charPred pred = anyP >>= (\c -> if pred c then pure c else empty)
+charPred p = anyP >>= (\c -> if p c then pure c else empty)
 
 charP :: Char -> Parser Char
 charP c = charPred (c ==)
@@ -65,7 +65,7 @@ notNull (Parser p) = Parser $ \input -> do
             else Just (x, input')
 
 spanP :: (Char -> Bool) -> Parser String 
-spanP pred = Parser $ Just . span pred
+spanP p = Parser $ Just . span p
 
 ws :: Parser String
 ws = spanP isSpace
