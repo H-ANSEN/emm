@@ -2,12 +2,16 @@ module Expr
   ( Expr(..)
   , Rule(..)
   , applyAll
+  , readRule
+  , readExpr
   )
   where
 
+import Parsers
 import Prelude hiding (lookup)
 import Text.Printf (printf)
-import Control.Applicative (liftA2)
+import Control.Applicative
+import Data.Char
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Map.Strict (Map)
@@ -79,8 +83,41 @@ applyAll rule expr =
           Sym _ -> expr
           Fun name args -> Fun name (map (applyAll rule) args)
       else
-        substBindings bindings (body rule)
+         substBindings bindings (body rule)
 
 printBindings :: Bindings -> IO ()
 printBindings b =
    mapM_ (putStrLn . (\(k, v) -> show k <> " => " <> show v)) (Map.toList b)
+
+{--PARSER----------------------------------------------------------------------}
+
+parseIdent :: Parser String
+parseIdent = do
+  first <- charP '_' <|> alphaP
+  rest  <- many (charP '_' <|> alphaP)
+  pure (first : rest)
+
+parseSym :: Parser Expr
+parseSym = Sym <$> parseIdent
+
+parseFun :: Parser Expr
+parseFun = do
+  name <- parseIdent
+  args <- charP '(' *> sepBy (ws *> charP ',' <* ws)  parseExpr <* charP ')'
+  pure (Fun name args)
+
+parseExpr :: Parser Expr
+parseExpr = parseFun <|> parseSym
+
+parseRule :: Parser Rule
+parseRule = do
+  hd   <- parseExpr
+  ws *> charP '=' <* ws
+  body <- parseExpr
+  pure Rule { hd, body }
+
+readRule :: String -> Maybe Rule
+readRule str = fst <$> runParser parseRule str
+
+readExpr :: String -> Maybe Expr
+readExpr str = fst <$> runParser parseExpr str
