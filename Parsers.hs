@@ -1,11 +1,13 @@
 module Parsers
   ( Parser(..)
   , charP
+  , alphaP
   , stringP
   , notNull
   , spanP
   , ws
   , sepBy
+  , anyP
   )
   where
 
@@ -29,15 +31,29 @@ instance Applicative Parser where
         (a, input'') <- p2 input'
         Just (f a, input'')
 
+instance Monad Parser where
+  (Parser p) >>= f = Parser $ \inp -> do
+    (x, inp') <- p inp
+    runParser (f x) inp'
+
 instance Alternative Parser where
   empty = Parser $ const Nothing
   (Parser p1) <|> (Parser p2) = Parser $ \input -> p1 input <|> p2 input
 
-charP :: Char -> Parser Char
-charP c = Parser $ \inp ->
+anyP :: Parser Char
+anyP = Parser $ \inp ->
   case inp of
-    x:xs | x == c -> Just (x, xs)
-    _             -> Nothing
+    x:xs -> Just (x, xs)
+    []   -> Nothing
+
+charPred :: (Char -> Bool) -> Parser Char
+charPred pred = anyP >>= (\c -> if pred c then pure c else empty)
+
+charP :: Char -> Parser Char
+charP c = charPred (c ==)
+
+alphaP :: Parser Char
+alphaP = charPred isAlpha
 
 stringP :: String -> Parser String
 stringP = traverse charP
