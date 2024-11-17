@@ -102,7 +102,9 @@ parseSym = Sym <$> parseIdent
 parseFun :: Parser Expr
 parseFun = do
   name <- parseIdent
-  args <- charP '(' *> sepBy (ws *> charP ',' <* ws)  parseExpr <* charP ')'
+  args <- charP '(' *> ws *> 
+          sepBy (ws *> charP ',' <* ws)  
+          parseExpr <* ws <* charP ')'
   pure (Fun name args)
 
 parseExpr :: Parser Expr

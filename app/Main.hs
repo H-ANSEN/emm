@@ -1,19 +1,13 @@
 module Main where
 
-import Expr
-
-a :: Maybe Expr
-a = do
-  testRule <- readRule "swap(pair(a, b)) = pair(b, a)"
-  testExpr <- readExpr "swap(pair(g(a), f(b)))"
-  pure $ applyAll testRule testExpr
+import System.IO
+import qualified Expr
 
 main :: IO ()
 main = do
-  let testRule = readRule "swap(pair(a, b)) = pair(b, a)"
-  let testExpr = readExpr "swap(pair(g(a), f(b)))"
-
-  putStrLn $ "Rule:        " <> show testRule
-  putStrLn $ "Expr:        " <> show testExpr
-  putStrLn $ "Application: " <> show a
-
+  putStr "> " 
+  hFlush stdout
+  input <- getLine
+  case Expr.readExpr input of
+    Just expr -> do print expr; main
+    Nothing   -> do putStrLn "invaild input"; main
