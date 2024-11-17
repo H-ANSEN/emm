@@ -2,15 +2,16 @@ module Expr
   ( Expr(..)
   , Rule(..)
   , applyAll
-  , readRule
-  , readExpr
+  , parseRule
+  , parseExpr
   )
   where
 
 import Parsers
-import Prelude hiding (lookup)
+import Prelude hiding (lookup, head)
 import Text.Printf (printf)
 import Control.Applicative
+import Data.Char
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Data.Map.Strict (Map)
@@ -20,7 +21,8 @@ import qualified Data.Map.Strict as Map
 
 data Expr
   = Sym String
-  | Fun String [Expr]
+  | Var String
+  | Fun Expr [Expr]
   deriving Eq
 
 data Rule = Rule
@@ -32,7 +34,8 @@ type Bindings = Map String Expr
 
 instance Show Expr where
   show (Sym s) = s
-  show (Fun name args) = printf "%s(%s)" name (intercalate ", " (map show args))
+  show (Var s) = s
+  show (Fun head args) = printf "%s(%s)" (show head) (intercalate ", " (map show args))
 
 instance Show Rule where
   show Rule { hd=mHead, body=mBody} = show mHead <> " = " <> show mBody
@@ -50,23 +53,20 @@ mergeBindings = merge preserveMissing
 substBindings :: Bindings -> Expr -> Expr
 substBindings bindings expr =
   case expr of
-    Sym name -> fromMaybe expr (Map.lookup name bindings)
-    Fun name args ->
-      let new_name = 
-            case Map.lookup name bindings of
-              Nothing -> name
-              Just (Sym sym_name) -> sym_name
-              _ -> undefined 
-      in
-      let new_args = map (substBindings bindings) args in
-      Fun new_name new_args
+    Sym _ -> expr
+    Var name -> fromMaybe expr (Map.lookup name bindings)
+    Fun head args ->
+      let new_head = substBindings bindings head
+          new_args = map (substBindings bindings) args in
+      Fun new_head new_args
 
 -- Pattern match across two expressions creating a set of bindings between the
 -- two
 match :: Expr -> Expr -> Bindings
 match pattern value =
   case (pattern, value) of
-    (Sym s1, _) -> Map.singleton s1 value
+    (Var s1, _) -> Map.singleton s1 value
+    (Sym s1, Sym s2) -> if s1 == s2 then Map.singleton s1 value else Map.empty
     (Fun name1 args1, Fun name2 args2) ->
       if name1 /= name2 || length args1 /= length args2 
          then Map.empty
@@ -80,35 +80,29 @@ applyAll rule expr =
       if Map.null bindings then
         case expr of
           Sym _ -> expr
-          Fun name args -> Fun name (map (applyAll rule) args)
+          Var _ -> expr
+          Fun head args -> Fun (applyAll rule head) (map (applyAll rule) args)
       else
          substBindings bindings (body rule)
 
-printBindings :: Bindings -> IO ()
-printBindings b =
-   mapM_ (putStrLn . (\(k, v) -> show k <> " => " <> show v)) (Map.toList b)
-
 {--PARSER----------------------------------------------------------------------}
 
-parseIdent :: Parser String
-parseIdent = do
-  first <- charP '_' <|> alphaP
-  rest  <- many (charP '_' <|> alphaP)
-  pure (first : rest)
+parseSymVar :: Parser Expr
+parseSymVar = do
+  first <- alphaP <|> digitP -- [isUpper] will distinguish this case
+  rest  <- many (charP '_' <|> alphaP <|> digitP)
+  if isUpper first then parseFun (Var $ first:rest) <|> pure (Var $ first:rest)
+                   else parseFun (Sym $ first:rest) <|> pure (Sym $ first:rest)
 
-parseSym :: Parser Expr
-parseSym = Sym <$> parseIdent
-
-parseFun :: Parser Expr
-parseFun = do
-  name <- parseIdent
-  args <- charP '(' *> ws *> 
-          sepBy (ws *> charP ',' <* ws)  
-          parseExpr <* ws <* charP ')'
-  pure (Fun name args)
+parseFun :: Expr -> Parser Expr
+parseFun name = do
+  args <- charP '(' *> ws *>
+          sepBy (ws *> charP ',' <* ws)
+          parseSymVar <* ws <* charP ')'
+  pure $ Fun name args
 
 parseExpr :: Parser Expr
-parseExpr = parseFun <|> parseSym
+parseExpr = parseSymVar
 
 parseRule :: Parser Rule
 parseRule = do
@@ -116,9 +110,3 @@ parseRule = do
   _     <- ws *> charP '=' <* ws
   mBody <- parseExpr
   pure Rule { hd=mHead, body=mBody }
-
-readRule :: String -> Maybe Rule
-readRule str = fst <$> runParser parseRule str
-
-readExpr :: String -> Maybe Expr
-readExpr str = fst <$> runParser parseExpr str

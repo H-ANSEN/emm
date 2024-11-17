@@ -2,6 +2,7 @@ module Parsers
   ( Parser(..)
   , charP
   , alphaP
+  , digitP
   , stringP
   , notNull
   , spanP
@@ -54,6 +55,9 @@ charP c = charPred (c ==)
 
 alphaP :: Parser Char
 alphaP = charPred isAlpha
+
+digitP :: Parser Char
+digitP = charPred isDigit
 
 stringP :: String -> Parser String
 stringP = traverse charP
