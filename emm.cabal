@@ -12,18 +12,19 @@ common warnings
 
 library
   import:          warnings
+  hs-source-dirs:  src
+  exposed-modules: Expr,
+                   Parsers
   build-depends:   base ^>=4.17.2.1,
                    containers
-  hs-source-dirs:  src
-  exposed-modules: Expr
-  other-modules:   Parsers
 
 
 executable emm
   import:           warnings
   main-is:          Main.hs
-  build-depends:    base ^>=4.17.2.1,
-                    emm
-
   hs-source-dirs:   app
   default-language: Haskell2010
+  other-modules:    Repl
+  build-depends:    base ^>=4.17.2.1,
+                    containers,
+                    emm

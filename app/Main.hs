@@ -1,13 +1,6 @@
 module Main where
 
-import System.IO
-import qualified Expr
+import qualified Repl
 
 main :: IO ()
-main = do
-  putStr "> " 
-  hFlush stdout
-  input <- getLine
-  case Expr.readExpr input of
-    Just expr -> do print expr; main
-    Nothing   -> do putStrLn "invaild input"; main
+main = Repl.startRepl
