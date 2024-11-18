@@ -31,7 +31,7 @@ repl ctx = do
   putStr "emm> "; hFlush stdout
   userInput <- getLine
 
-  let parsedAction = fst <$> runParser parseReplAction userInput
+  let parsedAction = maybeParse parseReplAction userInput
   case processAction ctx parsedAction of
     Right msg  -> do putStrLn $ "ERROR: " <> msg; hFlush stdout; repl ctx
     Left ctx'  ->
@@ -47,7 +47,7 @@ processAction :: ReplContext -> Maybe ReplAction -> ActionResult
 processAction ctx parseResult =
   case parseResult of
     Nothing                 -> Left ctx
-    Just (Done)             -> Left ctx { cExpr=Nothing }
+    Just Done               -> Left ctx { cExpr=Nothing }
     Just (Shape expr)       -> Left ctx { cExpr=Just expr }
     Just (Def (name, rule)) -> Left ctx { cRules=Map.insert name rule (cRules ctx) }
     Just (Apply name)       -> 
@@ -60,33 +60,33 @@ processAction ctx parseResult =
 
 {--REPL COMMAND PARSERS--------------------------------------------------------}
 
-parseReplAction :: Parser ReplAction
+parseReplAction :: StrParser ReplAction
 parseReplAction = ruleParser <|> shapeParser <|> applyParser <|> doneParser
 
-identParser :: Parser String
+identParser :: StrParser String
 identParser = do
   first <- alphaP
   rest  <- many (charP '_' <|> alphaP <|> digitP)
   pure (first:rest)
 
-ruleParser :: Parser ReplAction
+ruleParser :: StrParser ReplAction
 ruleParser = do
   _    <- stringP "rule" <* ws
   name <- identParser    <* ws
   rule <- Expr.parseRule <* ws
   pure $ Def (name, rule)
 
-shapeParser :: Parser ReplAction
+shapeParser :: StrParser ReplAction
 shapeParser = do
   _ <- stringP "shape" <* ws
   Shape <$> Expr.parseExpr
 
-applyParser :: Parser ReplAction
+applyParser :: StrParser ReplAction
 applyParser = do
   _ <- stringP "apply" <* ws
   Apply <$> identParser
 
-doneParser :: Parser ReplAction
+doneParser :: StrParser ReplAction
 doneParser = do
   _ <- stringP "done" <* ws
   pure Done

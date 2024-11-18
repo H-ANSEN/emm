@@ -87,24 +87,24 @@ applyAll rule expr =
 
 {--PARSER----------------------------------------------------------------------}
 
-parseSymVar :: Parser Expr
+parseSymVar :: StrParser Expr
 parseSymVar = do
   first <- alphaP <|> digitP -- [isUpper] will distinguish this case
   rest  <- many (charP '_' <|> alphaP <|> digitP)
   if isUpper first then parseFun (Var $ first:rest) <|> pure (Var $ first:rest)
                    else parseFun (Sym $ first:rest) <|> pure (Sym $ first:rest)
 
-parseFun :: Expr -> Parser Expr
+parseFun :: Expr -> StrParser Expr
 parseFun name = do
   args <- charP '(' *> ws *>
           sepBy (ws *> charP ',' <* ws)
           parseSymVar <* ws <* charP ')'
   pure $ Fun name args
 
-parseExpr :: Parser Expr
+parseExpr :: StrParser Expr
 parseExpr = parseSymVar
 
-parseRule :: Parser Rule
+parseRule :: StrParser Rule
 parseRule = do
   mHead <- parseExpr
   _     <- ws *> charP '=' <* ws
