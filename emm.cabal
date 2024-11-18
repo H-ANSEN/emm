@@ -18,7 +18,6 @@ library
   build-depends:   base ^>=4.17.2.1,
                    containers
 
-
 executable emm
   import:           warnings
   main-is:          Main.hs
@@ -28,3 +27,17 @@ executable emm
   build-depends:    base ^>=4.17.2.1,
                     containers,
                     emm
+
+test-suite emm-test
+  import:         warnings
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Spec.hs
+  build-depends:  base,
+                  hspec,
+                  hspec-discover,
+                  emm
+  ghc-options:
+    -O -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+    hspec-discover:hspec-discover
