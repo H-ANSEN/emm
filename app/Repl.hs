@@ -31,26 +31,30 @@ repl ctx = do
   putStr "emm> "; hFlush stdout
   userInput <- getLine
 
-  let parsedAction = maybeParse parseReplAction userInput
-  case processAction ctx parsedAction of
-    Right msg  -> do putStrLn $ "ERROR: " <> msg; hFlush stdout; repl ctx
-    Left ctx'  ->
+  case readInputAction ctx userInput of
+    Right errMsg -> do putStrLn errMsg; hFlush stdout; repl ctx
+    Left ctx'    ->
       case cExpr ctx' of
-        Nothing   -> repl ctx'
-        Just expr -> do 
+        Nothing   -> repl ctx' -- Not currently shaping an expression
+        Just expr -> do        -- Currently shaping expression [expr]
           putStrLn $ "=> " <> show expr; hFlush stdout
           repl ctx'
 
   pure ()
 
-processAction :: ReplContext -> Maybe ReplAction -> ActionResult
+readInputAction :: ReplContext -> String -> ActionResult
+readInputAction ctx input =
+  case parse parseReplAction input of
+    Left err     -> Right (fmtError err)
+    Right action -> processAction ctx action
+
+processAction :: ReplContext -> ReplAction -> ActionResult
 processAction ctx parseResult =
   case parseResult of
-    Nothing                 -> Left ctx
-    Just Done               -> Left ctx { cExpr=Nothing }
-    Just (Shape expr)       -> Left ctx { cExpr=Just expr }
-    Just (Def (name, rule)) -> Left ctx { cRules=Map.insert name rule (cRules ctx) }
-    Just (Apply name)       -> 
+    Done             -> Left ctx { cExpr=Nothing }
+    Shape expr       -> Left ctx { cExpr=Just expr }
+    Def (name, rule) -> Left ctx { cRules=Map.insert name rule (cRules ctx) }
+    Apply name       ->
       case cExpr ctx of
         Nothing   -> Right "Attempted to apply rule outside of shaping"
         Just expr ->

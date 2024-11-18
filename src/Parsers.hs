@@ -1,8 +1,10 @@
 module Parsers
   ( Parser
   , StrParser
+  , Error
   , parse
   , maybeParse
+  , fmtError
   , satisfy
   , sepBy
   , ws
@@ -11,6 +13,7 @@ module Parsers
   , digitP
   , stringP
   , spanP
+  , withContext
   )
   where
 
@@ -26,6 +29,7 @@ data ErrorType i e
   | Custom e i
   | Expected i i
   | Unexpected i
+  | Context String (ErrorType i e)
   deriving (Show, Eq)
 
 data Error i e = Error
@@ -82,6 +86,27 @@ maybeParse p input =
     Left _ -> Nothing
     Right (_, val, _) -> Just val
 
+fmtError :: (Show i, Show e) => [Error i e] -> String
+fmtError = intercalate "\n" . map descError
+  where
+    descError (Error offset errType) =
+      "At offset " ++ show offset ++ ": " ++ case errType of
+        EOF               -> "Uexpected end of input"
+        Empty             -> "Empty parser"
+        Custom e _        -> show e
+        Expected i got    -> "Expected " ++ show i ++ ", got " ++ show got
+        Unexpected i      -> "Unexpected input: " ++ show i
+        Context ctx inner -> ctx ++ " -> " ++ descError (Error offset inner)
+
+addContext :: String -> Error i e -> Error i e
+addContext ctx err = err { erType = Context ctx (erType err) }
+
+withContext :: String -> Parser i e a -> Parser i e a
+withContext ctx (Parser p) = Parser $ \input offset ->
+  case p input offset of
+    Left errs -> Left (map (addContext ctx) errs)
+    success   -> success
+
 token :: (i -> ErrorType i e) -> (i -> Bool) -> Parser i e i
 token mkErr predicate = Parser $ \input offset ->
   case input of
@@ -101,8 +126,8 @@ alphaP = token (Custom "Expected alpha character") isAlpha
 digitP :: Parser Char String Char
 digitP = token (Custom "Expected digit character") isDigit
 
-stringP :: Eq i => [i] -> Parser i e [i]
-stringP = traverse charP
+stringP :: (Show i, Eq i) => [i] -> Parser i e [i]
+stringP s = withContext ("Attempting to match: " <> show s) (traverse charP s)
 
 spanP :: (Eq i, Eq e) => (i -> Bool) -> Parser i e [i]
 spanP predicate = many (token Unexpected predicate)
