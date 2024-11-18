@@ -20,7 +20,7 @@ data ReplContext = Context {
   cExpr  :: Maybe Expr.Expr       -- current expression being shaped
 } deriving Show
 
-type ActionResult = Either ReplContext String
+type ActionResult = Either String ReplContext
 
 startRepl :: IO ()
 startRepl = repl Context { cRules=Map.empty, cExpr=Nothing }
@@ -32,8 +32,8 @@ repl ctx = do
   userInput <- getLine
 
   case readInputAction ctx userInput of
-    Right errMsg -> do putStrLn errMsg; hFlush stdout; repl ctx
-    Left ctx'    ->
+    Left errMsg -> do putStrLn errMsg; hFlush stdout; repl ctx
+    Right ctx'  ->
       case cExpr ctx' of
         Nothing   -> repl ctx' -- Not currently shaping an expression
         Just expr -> do        -- Currently shaping expression [expr]
@@ -45,22 +45,22 @@ repl ctx = do
 readInputAction :: ReplContext -> String -> ActionResult
 readInputAction ctx input =
   case parse parseReplAction input of
-    Left err     -> Right (fmtError err)
+    Left err     -> Left (fmtError err)
     Right action -> processAction ctx action
 
 processAction :: ReplContext -> ReplAction -> ActionResult
 processAction ctx parseResult =
   case parseResult of
-    Done             -> Left ctx { cExpr=Nothing }
-    Shape expr       -> Left ctx { cExpr=Just expr }
-    Def (name, rule) -> Left ctx { cRules=Map.insert name rule (cRules ctx) }
+    Done             -> Right ctx { cExpr=Nothing }
+    Shape expr       -> Right ctx { cExpr=Just expr }
+    Def (name, rule) -> Right ctx { cRules=Map.insert name rule (cRules ctx) }
     Apply name       ->
       case cExpr ctx of
-        Nothing   -> Right "Attempted to apply rule outside of shaping"
+        Nothing   -> Left "Attempted to apply rule outside of shaping"
         Just expr ->
           case Map.lookup name (cRules ctx) of
-            Nothing   -> Right ("Attempted to apply unbound rule: " <> name)
-            Just rule -> Left ctx { cExpr=Just (Expr.applyAll rule expr) }
+            Nothing   -> Left ("Attempted to apply unbound rule: " <> name)
+            Just rule -> Right ctx { cExpr=Just (Expr.applyAll rule expr) }
 
 {--REPL COMMAND PARSERS--------------------------------------------------------}
 
