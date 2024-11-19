@@ -1,7 +1,5 @@
 module Repl ( startRepl ) where
 
-import Debug.Trace
-
 import Parsers
 import System.IO
 import Control.Applicative
@@ -11,22 +9,25 @@ import qualified Expr
 import qualified Data.Map.Strict as Map
 
 data ReplAction
-  = Meta Expr.Rule Expr.Rule
-  | Def (String, Expr.Rule) -- Define a new rule (name, rule)
-  | Shape Expr.Expr         -- Begin shaping an expression
+  = Meta String Expr.Rule Expr.Rule -- Define a meta rule [name (A = B) = (C = D)]
+  | Def String Expr.Rule String     -- Define a new rule (name, rule, metas)
+  | Shape Expr.Expr                 -- Begin shaping an expression
   | Apply String
   | Done
   deriving Show
 
 data ReplContext = Context {
-  cRules :: Map String Expr.Rule, -- rules defined in the context
-  cExpr  :: Maybe Expr.Expr       -- current expression being shaped
+  cMetas :: Map String (Expr.Rule, Expr.Rule), -- meta rules defined in the ctx
+  cRules :: Map String Expr.Rule,              -- rules defined in the context
+  cExpr  :: Maybe Expr.Expr                    -- current expression being shaped
 } deriving Show
 
 type ActionResult = Either String ReplContext
 
 startRepl :: IO ()
-startRepl = repl Context { cRules=Map.empty, cExpr=Nothing }
+startRepl = repl Context { cMetas = Map.empty,
+                           cRules = Map.empty,
+                           cExpr  = Nothing }
 
 repl :: ReplContext -> IO ()
 repl ctx = do
@@ -51,38 +52,51 @@ readInputAction ctx input =
     Left err     -> Left (fmtError err)
     Right action -> processAction ctx action
 
+{- EXAMPLE META RULE APPLICATION TO CREATE A NEW RULE
+let testRule = Expr.Rule {
+  Expr.hd =
+    Expr.Fun (Expr.Sym "swap") [Expr.Fun (Expr.Sym "pair") [Expr.Var "A", Expr.Var "B"]],
+  Expr.body =
+    Expr.Fun (Expr.Sym "pair") [Expr.Var "B", Expr.Var "A"]} in
+trace ("swap rule: " <> show testRule) $
+
+
+let headBindings = Expr.match (Expr.hd rHead) (Expr.hd testRule) in
+let bodyBindings = Expr.match (Expr.body rHead) (Expr.body testRule) in
+let bindings     = Expr.mergeBindings headBindings bodyBindings in
+let new_head     = Expr.substBindings bindings (Expr.hd rBody) in
+let new_body     = Expr.substBindings bindings (Expr.body rBody) in
+let new_rule     = Expr.Rule {Expr.hd=new_head, Expr.body=new_body} in
+
+trace ("new rule: " <> show new_rule) Right ctx
+-}
+
+-- TODO: Parser error while shaping expression causes shaping mode to end
+-- TODO: Allow rule to inherit multiple meta rules
+-- TODO: Allow meta rules to be completely optional on a rule definition
+-- TODO: ??? Maybe move meta rule logic to core engine sense it requires
+--       matching, merging and substitution
 processAction :: ReplContext -> ReplAction -> ActionResult
 processAction ctx parseResult =
   case parseResult of
-    Done                   -> Right ctx { cExpr=Nothing }
-    Shape expr             -> Right ctx { cExpr=Just expr }
-    Def (name, rule)       -> Right ctx { cRules=Map.insert name rule (cRules ctx) }
+    Done                  -> Right ctx { cExpr=Nothing }
+    Shape expr            -> Right ctx { cExpr=Just expr }
+    Def name rule meta    ->
+      case Map.lookup meta (cMetas ctx) of
+        Nothing             -> Left $ "Using unknown meta rule: " <> meta
+        Just (rHead, rBody) ->
+          let headBindings  = Expr.match (Expr.hd rHead) (Expr.hd rule) in
+          let bodyBindings  = Expr.match (Expr.body rHead) (Expr.body rule) in
+          let bindings      = Expr.mergeBindings headBindings bodyBindings in
+          let new_head      = Expr.substBindings bindings (Expr.hd rBody) in
+          let new_body      = Expr.substBindings bindings (Expr.body rBody) in
+          let new_rule      = Expr.Rule {Expr.hd=new_head, Expr.body=new_body} in
+          let new_rule_name = name <> "_" <> meta in
+          Right ctx { cRules = Map.insert name rule $
+                               Map.insert new_rule_name new_rule (cRules ctx) }
 
-    Meta rHead rBody ->
-      let testRule = Expr.Rule {
-        Expr.hd =
-          Expr.Fun (Expr.Sym "swap") [Expr.Fun (Expr.Sym "pair") [Expr.Var "A", Expr.Var "B"]],
-        Expr.body =
-          Expr.Fun (Expr.Sym "pair") [Expr.Var "B", Expr.Var "A"]} in
-      trace ("swap rule: " <> show testRule) $
-
-      let headBindings = Expr.match (Expr.hd rHead) (Expr.hd testRule) in
-      let bodyBindings = Expr.match (Expr.body rHead) (Expr.body testRule) in
-      let bindings     = Expr.mergeBindings headBindings bodyBindings in
-      let new_head     = Expr.substBindings bindings (Expr.hd rBody) in
-      let new_body     = Expr.substBindings bindings (Expr.body rBody) in
-      let new_rule     = Expr.Rule {Expr.hd=new_head, Expr.body=new_body} in 
-      
-      trace ("new rule: " <> show new_rule) 
-
-      --let headApply = Expr.applyAll rHead (Expr.hd testRule) in
-      --let bodyApply = Expr.applyAll rBody (Expr.body testRule) in
-      --let metaRule = Expr.Rule {Expr.hd = headApply, Expr.body = bodyApply} in
-      --trace ("(" <> show headApply <> ") = (" <> show bodyApply <> ")") 
-      --trace ("meta rule -> " <> show metaRule) 
-        Right ctx
-
-    Apply name       ->
+    Meta name rHead rBody -> Right ctx { cMetas=Map.insert name (rHead, rBody) (cMetas ctx) }
+    Apply name            ->
       case cExpr ctx of
         Nothing   -> Left "Attempted to apply rule outside of shaping"
         Just expr ->
@@ -108,17 +122,19 @@ identParser = do
 metaParser :: StrParser ReplAction
 metaParser = do
   _      <- stringP "meta"                           <* ws
+  name   <- identParser                              <* ws
   ruleHd <- charP '(' *> Expr.parseRule <* charP ')' <* ws
   _      <- ws *> charP '='                          <* ws
   ruleTl <- charP '(' *> Expr.parseRule <* charP ')' <* ws
-  pure $ Meta ruleHd ruleTl
+  pure $ Meta name ruleHd ruleTl
 
 ruleParser :: StrParser ReplAction
 ruleParser = do
   _    <- stringP "rule" <* ws
   name <- identParser    <* ws
   rule <- Expr.parseRule <* ws
-  pure $ Def (name, rule)
+  meta <- charP '[' *> ws *> identParser <* ws <* charP ']'
+  pure $ Def name rule meta
 
 shapeParser :: StrParser ReplAction
 shapeParser = do
