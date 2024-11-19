@@ -1,7 +1,10 @@
 module Expr 
   ( Expr(..)
   , Rule(..)
+  , match
   , applyAll
+  , substBindings
+  , mergeBindings
   , parseRule
   , parseExpr
   )
