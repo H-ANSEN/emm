@@ -1,14 +1,4 @@
-module Expr 
-  ( Expr(..)
-  , Rule(..)
-  , match
-  , applyAll
-  , substBindings
-  , mergeBindings
-  , parseRule
-  , parseExpr
-  )
-  where
+module Engine.Expr where
 
 import Parsers
 import Prelude hiding (lookup, head)
@@ -56,13 +46,13 @@ mergeBindings = merge preserveMissing
 substBindings :: Bindings -> Expr -> Expr
 substBindings bindings expr =
   case expr of
-    Sym _ -> expr
-    Var name -> fromMaybe expr (Map.lookup name bindings)
+    Sym _         -> expr
+    Var name      -> fromMaybe expr (Map.lookup name bindings)
     Fun head args ->
       let new_head = substBindings bindings head
           new_args = map (substBindings bindings) args in
-      Fun new_head new_args
-
+          Fun new_head new_args
+           
 -- Pattern match across two expressions creating a set of bindings between the
 -- two
 match :: Expr -> Expr -> Bindings
