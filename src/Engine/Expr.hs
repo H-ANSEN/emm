@@ -127,9 +127,13 @@ parseExpr = parseLeftAssoc parseFactor (plus <|> minus)
         minus = ws *> charP '-' $> Op Sub <* ws
 
 parseFactor :: GenericParser Expr
-parseFactor = parseLeftAssoc parseTerm (mulP <|> divP) 
+parseFactor = parseLeftAssoc parsePow (mulP <|> divP) 
   where mulP = ws *> charP '*' $> Op Mul <* ws
         divP = ws *> charP '/' $> Op Div <* ws
+
+parsePow :: GenericParser Expr
+parsePow = parseLeftAssoc parseTerm sym
+  where sym = ws *> charP '^' $> Op Pow <* ws
 
 parseTerm :: StrParser Expr
 parseTerm = parseFun <|> parseSymVar
