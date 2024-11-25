@@ -18,10 +18,10 @@ data Expr
   | Var String
   | Fun Expr [Expr]
   | Op OpKind Expr Expr
-  deriving (Eq, Show)
+  deriving Eq
 
 data OpKind = Add | Sub | Mul | Div | Pow
-  deriving (Eq, Show)
+  deriving Eq
 
 data Rule = Rule
   { hd :: Expr
@@ -30,7 +30,6 @@ data Rule = Rule
 
 type Bindings = Map String Expr
 
-{-
 instance Show OpKind where
   show Add = "+"
   show Sub = "-"
@@ -46,7 +45,6 @@ instance Show Expr where
 
 instance Show Rule where
   show Rule { hd=mHead, body=mBody} = show mHead <> " = " <> show mBody
--}
 
 -- Merge two bindings together removing duplicate keys binding different values
 mergeBindings :: Bindings -> Bindings -> Bindings
@@ -136,7 +134,10 @@ parsePow = parseLeftAssoc parseTerm sym
   where sym = ws *> charP '^' $> Op Pow <* ws
 
 parseTerm :: StrParser Expr
-parseTerm = parseFun <|> parseSymVar
+parseTerm = parseFun <|> parseSymVar <|> parseParens
+
+parseParens :: StrParser Expr
+parseParens = charP '(' *> ws *> parseExpr <* ws <* charP ')'
 
 parseFun :: StrParser Expr
 parseFun = do
@@ -152,4 +153,8 @@ parseSymVar = do
 
 commaSepArgs :: StrParser [Expr]
 commaSepArgs = 
-  charP '(' *> ws *> sepBy (ws *> charP ',' <* ws) parseTerm <* ws <* charP ')'
+  charP '(' *> ws *> sepBy (ws *> charP ',' <* ws) parseExpr <* ws <* charP ')'
+
+-- TODO user defined operators
+-- such a feature would require a context to store previously defined operators
+-- so subsequent uses of such operators could be parsed
