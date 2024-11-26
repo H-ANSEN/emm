@@ -86,7 +86,7 @@ parseCtxAction =  ruleParser
 
 identParser :: StrParser String
 identParser = do
-  first <- alphaP
+  first <- alphaP <|> digitP
   rest  <- many (charP '_' <|> alphaP <|> digitP)
   pure (first:rest)
 

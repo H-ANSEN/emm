@@ -13,14 +13,18 @@ repl ctx = do
   putStr "emm> "; hFlush stdout
   userInput <- getLine
 
-  case readInputAction ctx userInput of
-    Left errMsg -> do putStrLn errMsg; hFlush stdout; repl ctx
-    Right ctx'  ->
-      case Engine.ctxExpr ctx' of
-        Nothing   -> repl ctx' -- Not currently shaping an expression
-        Just expr -> do        -- Currently shaping expression [expr]
-          putStrLn $ "=> " <> show expr; hFlush stdout
-          repl ctx'
+  if userInput == ""
+     then repl ctx
+     else
+
+    case readInputAction ctx userInput of
+      Left errMsg -> do putStrLn errMsg; hFlush stdout; repl ctx
+      Right ctx'  ->
+        case Engine.ctxExpr ctx' of
+          Nothing   -> repl ctx' -- Not currently shaping an expression
+          Just expr -> do        -- Currently shaping expression [expr]
+            putStrLn $ "=> " <> show expr; hFlush stdout
+            repl ctx'
 
   pure ()
 
