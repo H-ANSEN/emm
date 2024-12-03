@@ -6,6 +6,7 @@ module Engine
   , CtxResult
   , empty
   , ctxExpr
+  , ctxRules
   , processAction
   , parseCtxAction
   , parseExpr

@@ -7,6 +7,7 @@ module Engine.Context
   , CtxResult
   , Engine.Context.empty
   , ctxExpr
+  , ctxRules
   , processAction
   , parseCtxAction
   )
@@ -40,6 +41,9 @@ empty = Context {cMetas = Map.empty, cRules = Map.empty, cExpr = Nothing}
 
 ctxExpr :: Context -> Maybe Expr
 ctxExpr = cExpr
+
+ctxRules :: Context -> [(String, Rule)]
+ctxRules = Map.toList . cRules
 
 processAction :: CtxAction -> Context -> CtxResult
 processAction action ctx =
